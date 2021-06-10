@@ -15,8 +15,8 @@
  */
 
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import java.io.OutputStream
-
 
 plugins {
     kotlin("jvm") version "1.5.10"
@@ -24,28 +24,30 @@ plugins {
     `maven-publish`
 }
 
+/*
 // ProtocolLib 파일 다운로드 링크 (저장소 응답 없을시 사용)
-//downloadLibrary(
-//    "https://ci.dmulloy2.net/job/ProtocolLib/lastSuccessfulBuild/artifact/target/ProtocolLib.jar",
-//    "ProtocolLib.jar"
-//)
-//
-//fun downloadLibrary(url: String, fileName: String) {
-//    val parent = File(projectDir, "libs").also {
-//        it.mkdirs()
-//    }
-//    val jar = File(parent, fileName)
-//
-//    uri(url).toURL().openConnection().run {
-//        val lastModified = lastModified
-//        if (lastModified != jar.lastModified()) {
-//            inputStream.use { stream ->
-//                jar.writeBytes(stream.readBytes())
-//                jar.setLastModified(lastModified)
-//            }
-//        }
-//    }
-//}
+downloadLibrary(
+    "https://ci.dmulloy2.net/job/ProtocolLib/lastSuccessfulBuild/artifact/target/ProtocolLib.jar",
+    "ProtocolLib.jar"
+)
+
+fun downloadLibrary(url: String, fileName: String) {
+    val parent = File(projectDir, "libs").also {
+        it.mkdirs()
+    }
+    val jar = File(parent, fileName)
+
+    uri(url).toURL().openConnection().run {
+        val lastModified = lastModified
+        if (lastModified != jar.lastModified()) {
+            inputStream.use { stream ->
+                jar.writeBytes(stream.readBytes())
+                jar.setLastModified(lastModified)
+            }
+        }
+    }
+}
+*/
 
 allprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -59,7 +61,7 @@ allprojects {
 
     dependencies {
         compileOnly(kotlin("stdlib"))
-        compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0")
+        compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3")
         compileOnly("com.comphenix.protocol:ProtocolLib:4.6.0")
 //        compileOnly(rootProject.fileTree("dir" to "libs", "include" to "*.jar"))
 
@@ -130,22 +132,21 @@ tasks {
         }
     }
     shadowJar {
-        archiveClassifier.set("")
+        archiveClassifier.set("") // for publish
         exclude("LICENSE.txt") // mpl
-        gradle.taskGraph.whenReady {
-            if (hasTask(":publishTapPublicationToMavenLocal")) { // maven publish
-                dependencies {
-                    exclude(project(":paper"))
-                }
-            } else {
-                archiveVersion.set("")
-                archiveBaseName.set(project(":paper").property("pluginName").toString())
-            }
-        }
+        dependencies { exclude(project(":paper")) }
         relocate("org.mariuszgromada.math", "${rootProject.group}.${rootProject.name}.org.mariuszgromada.math")
     }
+    create<ShadowJar>("paperTestJar") {
+        archiveBaseName.set("Tap")
+        archiveVersion.set("") // For bukkit plugin update
+        archiveClassifier.set("TEST")
+        from(sourceSets["main"].output)
+
+        configurations = listOf(project.configurations.implementation.get().apply { isCanBeResolved = true })
+    }
     create<Copy>("copyToServer") {
-        from(shadowJar)
+        from(named("paperTestJar"))
         var dest = File(rootDir, ".server/plugins")
         // if plugin.jar exists in plugins change dest to plugins/update
         if (File(dest, "Tap.jar").exists()) dest = File(dest, "update")
